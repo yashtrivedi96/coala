@@ -523,6 +523,7 @@ def _create_linter(klass, options):
 
 @enforce_signature
 def linter(executable: str,
+           bear_type: Bear=LocalBear,
            use_stdin: bool=False,
            use_stdout: bool=True,
            use_stderr: bool=False,
@@ -709,6 +710,7 @@ def linter(executable: str,
         A ``LocalBear`` derivation that lints code using an external tool.
     """
     options["executable"] = executable
+    options["bear_type"] = bear_type
     options["output_format"] = output_format
     options["use_stdin"] = use_stdin
     options["use_stdout"] = use_stdout
