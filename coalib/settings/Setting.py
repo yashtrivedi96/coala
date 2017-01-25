@@ -86,7 +86,7 @@ def typed_ordered_dict(key_type, value_type, default):
         for key, value in OrderedDict(setting).items())
 
 
-@generate_repr('key', 'value', 'origin', 'from_cli')
+@generate_repr('key', 'value', 'origin', 'from_cli', 'to_append')
 class Setting(StringConverter):
     """
     A Setting consists mainly of a key and a value. It mainly offers many
@@ -100,7 +100,8 @@ class Setting(StringConverter):
                  strip_whitespaces=True,
                  list_delimiters=(',', ';'),
                  from_cli=False,
-                 remove_empty_iter_elements=True):
+                 remove_empty_iter_elements=True,
+                 to_append=False):
         """
         Initializes a new Setting,
 
@@ -121,9 +122,17 @@ class Setting(StringConverter):
                                            CliParser.
         :param remove_empty_iter_elements: Whether to remove empty elements in
                                            iterable values.
+        :param to_append:                  The boolean value if setting value
+                                           needs to be appended to a setting in
+                                           the defaults of a section.
         """
         if not isinstance(from_cli, bool):
             raise TypeError('from_cli needs to be a boolean value.')
+
+        if not isinstance(to_append, bool):
+            raise TypeError('to_append needs to be a boolean value.')
+
+        self.to_append = to_append
 
         StringConverter.__init__(
             self,
@@ -208,6 +217,13 @@ class Setting(StringConverter):
         """
         return [Setting.__glob__(elem, self.origin) for elem in self]
 
+    def __iter__(self, remove_backslashes=True):
+        if self.to_append:
+            raise ValueError('Iteration on this object is invalid because the '
+                             'value is incomplete. Please access the value of '
+                             'the setting in a section to iterate through it.')
+        return StringConverter.__iter__(self, remove_backslashes)
+
     @property
     def key(self):
         return self._key
@@ -219,3 +235,11 @@ class Setting(StringConverter):
             raise ValueError('An empty key is not allowed for a setting.')
 
         self._key = newkey
+
+    @StringConverter.value.getter
+    def value(self):
+        if self.to_append:
+            raise ValueError('This property is invalid because the value is '
+                             'incomplete. Please access the value of the '
+                             'setting in a section to get the complete value.')
+        return self._value

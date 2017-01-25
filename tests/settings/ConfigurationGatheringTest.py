@@ -2,17 +2,20 @@ import os
 import re
 import tempfile
 import unittest
+import logging
 
 from pyprint.ClosableObject import close_objects
 from pyprint.NullPrinter import NullPrinter
 import pytest
 
 from coalib.misc import Constants
-from coala_utils.ContextManagers import make_temp, change_directory
+from coala_utils.ContextManagers import (
+    make_temp, change_directory, retrieve_stdout)
 from coalib.output.printers.LogPrinter import LogPrinter
 from coala_utils.string_processing import escape
 from coalib.settings.ConfigurationGathering import (
     find_user_config, gather_configuration, load_configuration)
+from coalib.settings.Section import append_to_sections
 
 
 @pytest.mark.usefixtures('disable_bears')
@@ -49,8 +52,8 @@ class ConfigurationGatheringTest(unittest.TestCase):
                               '-s'] + self.min_args))
 
         self.assertEqual(
-            str(sections['default']),
-            "Default {bears : 'JavaTestBear', config : " + repr(temporary) +
+            str(sections['cli']),
+            "cli {bears : 'JavaTestBear', config : " + repr(temporary) +
             ", files : '*.java', save : 'True', test : '5'}")
 
         with make_temp() as temporary:
@@ -190,7 +193,9 @@ class ConfigurationGatheringTest(unittest.TestCase):
 
         with open(filename, 'r') as f:
             lines = f.readlines()
-        self.assertEqual(['[Default]\n', 'config = some_bad_filename\n'], lines)
+        self.assertEqual(['[Default]\n',
+                          '[cli]\n',
+                          'config = some_bad_filename\n'], lines)
 
         with self.assertRaises(SystemExit):
             gather_configuration(
@@ -207,6 +212,7 @@ class ConfigurationGatheringTest(unittest.TestCase):
         if os.path.sep == '\\':
             filename = escape(filename, '\\')
         self.assertEqual(['[Default]\n',
+                          '[cli]\n',
                           'config = ' + filename + '\n',
                           '[test]\n',
                           'value = 5\n'], lines)
@@ -248,7 +254,7 @@ class ConfigurationGatheringTest(unittest.TestCase):
                 lambda *args: True,
                 self.log_printer,
                 arg_list=['--find-config'])
-            self.assertEqual(bool(sections['default']['find_config']), True)
+            self.assertEqual(bool(sections['cli']['find_config']), True)
 
     def test_no_config(self):
         current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -262,13 +268,13 @@ class ConfigurationGatheringTest(unittest.TestCase):
             sections, targets = load_configuration(
                 ['--no-config'],
                 self.log_printer)
-            self.assertNotIn('value', sections['default'])
+            self.assertNotIn('value', sections['cli'])
 
             sections, targets = load_configuration(
                 ['--no-config', '-S', 'use_spaces=True'],
                 self.log_printer)
-            self.assertIn('use_spaces', sections['default'])
-            self.assertNotIn('values', sections['default'])
+            self.assertIn('use_spaces', sections['cli'])
+            self.assertNotIn('values', sections['cli'])
 
             with self.assertRaises(SystemExit) as cm:
                 sections, target = load_configuration(
@@ -281,3 +287,47 @@ class ConfigurationGatheringTest(unittest.TestCase):
                     ['--no-config', '--find-config'],
                     self.log_printer)
                 self.assertEqual(cm.exception.code, 2)
+
+    def test_section_inheritance(self):
+        current_dir = os.path.abspath(os.path.dirname(__file__))
+        test_dir = os.path.join(current_dir, 'section_manager_test_files')
+
+        with change_directory(test_dir):
+            sections, _, _, _ = gather_configuration(
+                lambda *args: True,
+                self.log_printer,
+                arg_list=['-c', 'inherit_coafile'])
+            self.assertEqual(sections['all.python'].defaults, sections['all'])
+            self.assertEqual(sections['all.c']['key'],
+                             sections['default']['key'])
+            self.assertEqual(sections['java.test'].defaults,
+                             sections['default'])
+            self.assertEqual(int(sections['all.python']['max_line_length']),
+                             80)
+            self.assertEqual(sections['all.python.codestyle'].defaults,
+                             sections['all.python'])
+            self.assertEqual(sections['all.java.codestyle'].defaults,
+                             sections['all'])
+            self.assertEqual(str(sections['all']['ignore']),
+                             './vendor')
+            sections['default']['ignore'] = './user'
+            self.assertEqual(str(sections['all']['ignore']),
+                             './user, ./vendor')
+            sections['default']['ignore'] = './client'
+            self.assertEqual(str(sections['all']['ignore']),
+                             './client, ./vendor')
+
+    def test_default_section_deprecation_warning(self):
+        logger = logging.getLogger()
+
+        with self.assertLogs(logger, 'WARNING') as cm:
+            # This gathers the configuration from the '.coafile' of this repo.
+            gather_configuration(lambda *args: True,
+                                 self.log_printer,
+                                 arg_list=[])
+
+        self.assertIn('WARNING', cm.output[0])
+
+        with retrieve_stdout() as stdout:
+            load_configuration(['--no-config'], self.log_printer)
+            self.assertNotIn('WARNING', stdout.getvalue())

@@ -51,35 +51,36 @@ class coalaTest(unittest.TestCase):
 
     def test_did_nothing(self):
         retval, output = execute_coala(coala.main, 'coala', '-I',
-                                       '-S', 'default.enabled=false')
+                                       '-S', 'cli.enabled=false')
         self.assertEqual(retval, 2)
         self.assertIn('Did you forget to give the `--files`', output)
 
         retval, output = execute_coala(coala.main, 'coala', '-I',
                                        '-b', 'JavaTestBear', '-f', '*.java',
-                                       '-S', 'default.enabled=false')
+                                       '-S', 'cli.enabled=false')
         self.assertEqual(retval, 2)
         self.assertIn('Nothing to do.', output)
 
     def test_show_all_bears(self):
         with bear_test_module():
-            retval, output = execute_coala(coala.main, 'coala', '-B')
+            retval, output = execute_coala(
+                coala.main, 'coala', '-B', stdout_only=True)
             self.assertEqual(retval, 0)
-            # 6 bears plus 1 line holding the closing colour escape sequence
+            # 6 bears and 1 line holding the closing colour escape sequence.
             self.assertEqual(len(output.strip().splitlines()), 7)
 
     def test_show_language_bears(self):
         with bear_test_module():
             retval, output = execute_coala(
-                coala.main, 'coala', '-B', '-l', 'java')
+                coala.main, 'coala', '-B', '-l', 'java', stdout_only=True)
             self.assertEqual(retval, 0)
-            # 2 bears plus 1 line holding the closing colour escape sequence
+            # 2 bears and 1 line holding the closing colour escape sequence.
             self.assertEqual(len(output.splitlines()), 3)
 
     def test_show_capabilities_with_supported_language(self):
         with bear_test_module():
             retval, output = execute_coala(
-                coala.main, 'coala', '-p', 'R')
+                coala.main, 'coala', '-p', 'R', stdout_only=True)
             self.assertEqual(retval, 0)
             self.assertEqual(len(output.splitlines()), 2)
 
@@ -129,7 +130,7 @@ class coalaTest(unittest.TestCase):
                         '-S', 'use_spaces=yeah'
                     ),
                     autoapply=False
-                )[0]['default'])
+                )[0]['cli'])
             )
 
             self.assertEqual(
@@ -144,5 +145,5 @@ class coalaTest(unittest.TestCase):
                         '--apply-patches',
                         '-S', 'use_spaces=yeah'
                     )
-                )[0]['default'])
+                )[0]['cli'])
             )
