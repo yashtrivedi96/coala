@@ -801,8 +801,8 @@ def linter(executable: str,
     ...     @staticmethod
     ...     def generate_config(filename,
     ...                         file,
-    ...                         lintmode,
-    ...                         enable_aggressive_lints):
+    ...                         lintmode: str,
+    ...                         enable_aggressive_lints: bool=False):
     ...         modestring = ("aggressive"
     ...                       if enable_aggressive_lints else
     ...                       "non-aggressive")
